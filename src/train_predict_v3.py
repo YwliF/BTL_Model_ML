@@ -30,10 +30,19 @@ def generate_submission():
     drop_cols = ['date', 'target', 'sales']
     cat_cols = ['store_nbr', 'family', 'city', 'state', 'type', 'cluster', 'national_h_type']
 
-    # Optuna parameters validated on the recent 16-day holdout.
-    with open('data/best_hyperparams.json', encoding='utf-8') as f:
-        tuned = json.load(f)
-    print("Using Optuna parameters:", tuned)
+    # Parameters selected by validation in benchmark_strategies.py.
+    tuned = {
+        'num_leaves': 63,
+        'max_depth': 8,
+        'learning_rate': 0.06,
+        'n_estimators': 300,
+        'min_child_samples': 50,
+        'subsample': 0.8,
+        'colsample_bytree': 0.8,
+        'reg_alpha': 0.1,
+        'reg_lambda': 1.0
+    }
+    print("Using validation benchmark parameters:", tuned)
 
     lgb_params = {
         'objective': 'regression',
@@ -59,17 +68,10 @@ def generate_submission():
 
     feat_cols = [c for c in tr_en_agn.columns if c not in drop_cols]
     
-    # Average independent LightGBM seeds in log-sales space. This reduced
-    # validation RMSLE slightly versus one seed while keeping the same features.
-    pred_logs_agn = []
-    for seed in [42, 2025, 777]:
-        seed_params = {**lgb_params, 'random_state': seed}
-        model_agn = lgb.LGBMRegressor(**seed_params)
-        model_agn.fit(tr_en_agn[feat_cols], tr_en_agn['target'])
-        pred_logs_agn.append(model_agn.predict(ev_en_agn[feat_cols]))
-        print(f"  Horizon-agnostic seed {seed} finished")
+    model_agn = lgb.LGBMRegressor(**lgb_params)
+    model_agn.fit(tr_en_agn[feat_cols], tr_en_agn['target'])
 
-    pred_log_agn = np.mean(pred_logs_agn, axis=0)
+    pred_log_agn = model_agn.predict(ev_en_agn[feat_cols])
     pred_sales_agn = np.clip(np.expm1(pred_log_agn), 0, None)
     
     # Zero mask for agnostic

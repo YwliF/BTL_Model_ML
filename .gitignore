@@ -2,3 +2,5 @@ __pycache__/
 *.py[cod]
 data/train.csv
 submission.csv
+submission_v2.csv
+submission_v3.csv
